@@ -10,6 +10,7 @@ class Minesweeper:
         self.mines = self.generate_mines()
         self.game_over = False
         self.num_revealed = 0
+        self.flags = set()  # Track placed flags
 
     def generate_mines(self):
         mines = set()
@@ -55,6 +56,17 @@ class Minesweeper:
             for i, j in self.get_adjacent_cells(row, col):
                 self.reveal_cell(i, j)
 
+    def place_flag(self, row, col):
+        if self.game_over:
+            return
+
+        if (row, col) in self.flags:
+            self.flags.remove((row, col))
+            self.board[row][col] = '*'
+        else:
+            self.flags.add((row, col))
+            self.board[row][col] = 'F'
+
     def print_board(self):
         print("   ", end="")
         for col in range(self.cols):
@@ -70,6 +82,15 @@ class Minesweeper:
         while not self.game_over:
             self.print_board()
             while True:
+                action = input("Enter action (r/f/q): ").lower()
+                if action not in ('r', 'f', 'q'):
+                    print("Invalid action. Please enter 'r' to reveal, 'f' to flag, or 'q' to quit.")
+                    continue
+
+                if action == 'q':
+                    print("Exiting game.")
+                    return
+
                 try:
                     row = int(input("Enter row: "))
                     col = int(input("Enter column: "))
@@ -79,7 +100,11 @@ class Minesweeper:
                         print("Invalid row or column. Please enter valid coordinates.")
                 except ValueError:
                     print("Invalid input. Please enter numbers.")
-            self.reveal_cell(row, col)
+
+            if action == 'r':
+                self.reveal_cell(row, col)
+            elif action == 'f':
+                self.place_flag(row, col)
 
             if self.num_revealed == self.rows * self.cols - self.num_mines:
                 self.game_over = True
