@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import talib  # Add this for technical indicators
+import logging
 
 # --- Configuration ---
 
@@ -25,6 +26,14 @@ take_profit_percentage = 0.02  # Take profit percentage
 max_open_trades = 3  # Maximum number of simultaneous open trades
 risk_reward_ratio = 1.5  # Target risk-reward ratio for trades
 
+# Backtesting Parameters (if applicable)
+backtest_start_date = '2023-01-01 00:00:00'  # Start date for backtesting
+backtest_end_date = '2023-12-31 23:59:59'  # End date for backtesting
+
+# --- Logging ---
+logging.basicConfig(filename='trading_bot.log', level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
 # --- Initialize Exchange ---
 
 exchange = ccxt.binance({
@@ -35,13 +44,17 @@ exchange = ccxt.binance({
 
 # --- Data Loading and Preprocessing ---
 
-def get_historical_data(symbol, timeframe, limit=1000):
+def get_historical_data(symbol, timeframe, since=None, limit=1000):
     """Fetches historical data from the exchange."""
-    ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
-    df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df.set_index('timestamp', inplace=True)
-    return df
+    try:
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, since=since, limit=limit)
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        return df
+    except ccxt.ExchangeError as e:
+        logging.error(f"Error fetching historical  {e}")
+        return None
 
 # --- Trading Logic ---
 
@@ -59,6 +72,9 @@ def calculate_indicators(df):
 
     # Bollinger Bands
     df['upper_band'], df['middle_band'], df['lower_band'] = talib.BBANDS(df['close'], timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+
+    # Average True Range (ATR) - for volatility-based stop-loss
+    df['ATR'] = talib.ATR(df['high'], df['low'], df['close'], timeperiod=14)
 
     return df
 
@@ -93,9 +109,9 @@ def execute_trade(symbol, side, amount, stop_loss_price=None, take_profit_price=
         else:
             order = exchange.create_order(symbol, order_type, side, amount)
 
-        print(f"Order placed: {order}")
-    except Exception as e:
-        print(f"Error placing order: {e}")
+        logging.info(f"Order placed: {order}")
+    except ccxt.ExchangeError as e:
+        logging.error(f"Error placing order: {e}")
 
 # --- Risk Management ---
 
@@ -109,43 +125,106 @@ def get_position_size(balance, entry_price, stop_loss_price, risk_percentage):
 def get_open_trades(exchange, symbol):
     """Gets the list of open trades for the given symbol."""
     open_trades = []
-    for trade in exchange.fetch_open_orders(symbol):
-        if trade['status'] == 'open':
-            open_trades.append(trade)
+    try:
+        for trade in exchange.fetch_open_orders(symbol):
+            if trade['status'] == 'open':
+                open_trades.append(trade)
+    except ccxt.ExchangeError as e:
+        logging.error(f"Error fetching open trades: {e}")
     return open_trades
+
+# --- Backtesting (Optional) ---
+
+def backtest(df):
+    """Performs backtesting on historical data."""
+    initial_balance = 1000  # Starting balance for backtesting
+    balance = initial_balance
+    trades = []
+
+    for i in range(len(df)):
+        if df['signal'][i] == 1:
+            # Buy signal
+            entry_price = df['close'][i]
+            stop_loss_price = entry_price * (1 - stop_loss_percentage)
+            take_profit_price = entry_price * (1 + take_profit_percentage)
+            amount = get_position_size(balance, entry_price, stop_loss_price, balance_percentage)
+
+            # Simulate trade execution
+            if balance >= amount * entry_price:
+                balance -= amount * entry_price
+                trades.append({'timestamp': df.index[i], 'side': 'buy', 'price': entry_price, 'amount': amount, 'stop_loss': stop_loss_price, 'take_profit': take_profit_price})
+
+        elif df['signal'][i] == -1 and len(trades) > 0:
+            # Sell signal (close the oldest open trade)
+            open_trade = trades.pop(0)
+            exit_price = df['close'][i]
+
+            # Simulate trade exit
+            if exit_price >= open_trade['take_profit']:
+                balance += open_trade['amount'] * open_trade['take_profit']
+            elif exit_price <= open_trade['stop_loss']:
+                balance += open_trade['amount'] * open_trade['stop_loss']
+            else:
+                balance += open_trade['amount'] * exit_price
+
+    final_balance = balance
+    profit = final_balance - initial_balance
+    profit_percentage = (profit / initial_balance) * 100
+
+    print(f"Backtesting Results:")
+    print(f"Initial Balance: {initial_balance}")
+    print(f"Final Balance: {final_balance}")
+    print(f"Profit: {profit}")
+    print(f"Profit Percentage: {profit_percentage:.2f}%")
+
+    return trades
 
 # --- Main Loop ---
 
 def main():
     """Main trading loop."""
-    while True:
-        # Fetch latest data
-        df = get_historical_data(symbol, timeframe)
 
-        # Calculate indicators
-        df = calculate_indicators(df)
+    if backtest_start_date and backtest_end_date:
+        # Backtesting mode
+        since = int(pd.Timestamp(backtest_start_date).timestamp() * 1000)
+        df = get_historical_data(symbol, timeframe, since=since)
+        if df is not None:
+            df = calculate_indicators(df)
+            df = generate_trading_signals(df)
+            backtest(df)
+    else:
+        # Live trading mode
+        while True:
+            # Fetch latest data
+            df = get_historical_data(symbol, timeframe)
+            if df is not None:
+                # Calculate indicators
+                df = calculate_indicators(df)
 
-        # Generate trading signals
-        df = generate_trading_signals(df)
+                # Generate trading signals
+                df = generate_trading_signals(df)
 
-        # Check for signals and risk management
-        if df['signal'].iloc[-1] == 1 and len(get_open_trades(exchange, symbol)) < max_open_trades:
-            # Buy signal
-            balance = exchange.fetch_balance()['USDT']['free']
-            entry_price = df['close'].iloc[-1]
-            stop_loss_price = entry_price * (1 - stop_loss_percentage)
-            take_profit_price = entry_price * (1 + take_profit_percentage * risk_reward_ratio)
-            amount = get_position_size(balance, entry_price, stop_loss_price, balance_percentage)
-            execute_trade(symbol, 'buy', amount, stop_loss_price, take_profit_price)
+                # Check for signals and risk management
+                if df['signal'].iloc[-1] == 1 and len(get_open_trades(exchange, symbol)) < max_open_trades:
+                    # Buy signal
+                    balance = exchange.fetch_balance()['USDT']['free']
+                    entry_price = df['close'].iloc[-1]
+                    stop_loss_price = entry_price * (1 - stop_loss_percentage)
+                    take_profit_price = entry_price * (1 + take_profit_percentage * risk_reward_ratio)
+                    amount = get_position_size(balance, entry_price, stop_loss_price, balance_percentage)
+                    execute_trade(symbol, 'buy', amount, stop_loss_price, take_profit_price)
 
-        elif df['signal'].iloc[-1] == -1:
-            # Sell signal
-            position = exchange.fetch_positions()[0]  # Assuming only one open position
-            amount = position['amount']
-            execute_trade(symbol, 'sell', amount)
+                elif df['signal'].iloc[-1] == -1:
+                    # Sell signal
+                    try:
+                        position = exchange.fetch_positions()[0]  # Assuming only one open position
+                        amount = position['amount']
+                        execute_trade(symbol, 'sell', amount)
+                    except IndexError:
+                        logging.warning("Sell signal generated, but no open position found.")
 
-        # Sleep for a specified interval
-        time.sleep(60)
+                # Sleep for a specified interval
+                time.sleep(60)
 
 if __name__ == '__main__':
     main()
