@@ -69,8 +69,16 @@ class Minesweeper:
     def play(self):
         while not self.game_over:
             self.print_board()
-            row = int(input("Enter row: "))
-            col = int(input("Enter column: "))
+            while True:
+                try:
+                    row = int(input("Enter row: "))
+                    col = int(input("Enter column: "))
+                    if 0 <= row < self.rows and 0 <= col < self.cols:
+                        break
+                    else:
+                        print("Invalid row or column. Please enter valid coordinates.")
+                except ValueError:
+                    print("Invalid input. Please enter numbers.")
             self.reveal_cell(row, col)
 
             if self.num_revealed == self.rows * self.cols - self.num_mines:
@@ -79,8 +87,16 @@ class Minesweeper:
                 self.print_board()
 
 if __name__ == '__main__':
-    rows = int(input("Enter number of rows: "))
-    cols = int(input("Enter number of columns: "))
-    num_mines = int(input("Enter number of mines: "))
+    while True:
+        try:
+            rows = int(input("Enter number of rows: "))
+            cols = int(input("Enter number of columns: "))
+            num_mines = int(input("Enter number of mines: "))
+            if rows * cols > num_mines:
+                break
+            else:
+                print("Number of mines cannot exceed the number of cells. Please try again.")
+        except ValueError:
+            print("Invalid input. Please enter numbers.")
     game = Minesweeper(rows, cols, num_mines)
     game.play()
