@@ -14,10 +14,38 @@ data = yf.download(ticker, start=start_date, end=end_date)
 # Create a Pandas DataFrame with adjusted closing prices
 df = pd.DataFrame({"Price": data["Adj Close"]})
 
-# Implement a simple moving average crossover strategy with risk management and parameter optimization
+import ta
+
+# Implement a trading strategy with technical indicators, risk management, and parameter optimization
 short_window = 20
 long_window = 50
+rsi_period = 14
+macd_fast_period = 12
+macd_slow_period = 26
+macd_signal_period = 9
 stop_loss_pct = 0.05  # 5% stop-loss
+
+
+def calculate_technical_indicators(df):
+    """Calculates technical indicators: RSI and MACD."""
+    df["RSI"] = ta.momentum.RSIIndicator(df["Price"], window=rsi_period).rsi()
+    df["MACD"] = ta.trend.MACD(
+        df["Price"],
+        window_fast=macd_fast_period,
+        window_slow=macd_slow_period,
+        window_sign=macd_signal_period,
+    ).macd()
+    df["MACD_Signal"] = ta.trend.MACD(
+        df["Price"],
+        window_fast=macd_fast_period,
+        window_slow=macd_slow_period,
+        window_sign=macd_signal_period,
+    ).macd_signal()
+    return df
+
+
+# Calculate technical indicators
+df = calculate_technical_indicators(df)
 
 # Optimize strategy parameters (example using grid search)
 best_sharpe_ratio = -np.inf
@@ -28,7 +56,18 @@ for short in range(10, 31, 5):
         df["Long_MA"] = df["Price"].rolling(window=long).mean()
         df["Signal"] = 0.0
         df["Signal"][short:] = np.where(
-            df["Short_MA"][short:] > df["Long_MA"][short:], 1.0, 0.0
+            (df["Short_MA"][short:] > df["Long_MA"][short:])
+            & (df["RSI"][short:] < 30)  # Buy when RSI is oversold
+            & (df["MACD"][short:] > df["MACD_Signal"][short:]),  # Buy when MACD crosses above signal line
+            1.0,
+            0.0,
+        )
+        df["Signal"][short:] = np.where(
+            (df["Short_MA"][short:] < df["Long_MA"][short:])
+            & (df["RSI"][short:] > 70)  # Sell when RSI is overbought
+            & (df["MACD"][short:] < df["MACD_Signal"][short:]),  # Sell when MACD crosses below signal line
+            -1.0,
+            df["Signal"][short:],
         )
         df["Position"] = df["Signal"].diff()
 
@@ -80,7 +119,18 @@ df["Short_MA"] = df["Price"].rolling(window=short_window).mean()
 df["Long_MA"] = df["Price"].rolling(window=long_window).mean()
 df["Signal"] = 0.0
 df["Signal"][short_window:] = np.where(
-    df["Short_MA"][short_window:] > df["Long_MA"][short_window:], 1.0, 0.0
+    (df["Short_MA"][short_window:] > df["Long_MA"][short_window:])
+    & (df["RSI"][short_window:] < 30)  # Buy when RSI is oversold
+    & (df["MACD"][short_window:] > df["MACD_Signal"][short_window:]),  # Buy when MACD crosses above signal line
+    1.0,
+    0.0,
+)
+df["Signal"][short_window:] = np.where(
+    (df["Short_MA"][short_window:] < df["Long_MA"][short_window:])
+    & (df["RSI"][short_window:] > 70)  # Sell when RSI is overbought
+    & (df["MACD"][short_window:] < df["MACD_Signal"][short_window:]),  # Sell when MACD crosses below signal line
+    -1.0,
+    df["Signal"][short_window:],
 )
 df["Position"] = df["Signal"].diff()
 
