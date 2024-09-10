@@ -24,9 +24,10 @@ for _ in range(len(dates) - 1):
 # Create a Pandas DataFrame
 df = pd.DataFrame({"Date": dates, "Price": prices})
 
-# Implement a simple moving average crossover strategy
+# Implement a simple moving average crossover strategy with risk management
 short_window = 20
 long_window = 50
+stop_loss_pct = 0.05  # 5% stop-loss
 df["Short_MA"] = df["Price"].rolling(window=short_window).mean()
 df["Long_MA"] = df["Price"].rolling(window=long_window).mean()
 df["Signal"] = 0.0
@@ -35,9 +36,28 @@ df["Signal"][short_window:] = np.where(
 )
 df["Position"] = df["Signal"].diff()
 
+# Implement stop-loss orders
+for i in range(short_window + 1, len(df)):
+    if df["Position"][i] == 1:  # Long position
+        stop_loss_price = df["Price"][i] * (1 - stop_loss_pct)
+        for j in range(i + 1, len(df)):
+            if df["Price"][j] < stop_loss_price:
+                df["Position"][j] = -1  # Exit position
+                break
+    elif df["Position"][i] == -1:  # Short position
+        stop_loss_price = df["Price"][i] * (1 + stop_loss_pct)
+        for j in range(i + 1, len(df)):
+            if df["Price"][j] > stop_loss_price:
+                df["Position"][j] = 1  # Exit position
+                break
+
+# Incorporate transaction costs
+transaction_cost = 0.001  # 0.1% per trade
+
 # Calculate returns
 df["Returns"] = df["Price"].pct_change()
 df["Strategy_Returns"] = df["Returns"] * df["Position"].shift(1)
+df["Strategy_Returns"][df["Position"].diff() != 0] -= transaction_cost
 
 # Calculate cumulative returns
 df["Cumulative_Returns"] = (1 + df["Returns"]).cumprod() - 1
