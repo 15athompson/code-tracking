@@ -24,7 +24,7 @@ def segment_customers(X_scaled, n_clusters=4):
     kmeans.fit(X_scaled)
     return kmeans.labels_
 
-def analyze_segments(data, labels):
+def analyze_segments(data, labels, n_clusters):
     """Analyzes the characteristics of each customer segment."""
     data['segment'] = labels
     for i in range(n_clusters):
@@ -40,7 +40,8 @@ if __name__ == "__main__":
     X_scaled = preprocess_data(data)
 
     # Segment customers
-    labels = segment_customers(X_scaled)
+    n_clusters = 4  # Or any desired number of clusters
+    labels = segment_customers(X_scaled, n_clusters)
 
     # Analyze segments
-    analyze_segments(data, labels)
+    analyze_segments(data, labels, n_clusters)
