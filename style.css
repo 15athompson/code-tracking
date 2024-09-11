@@ -1,0 +1,56 @@
+body {
+    font-family: sans-serif;
+}
+
+.container {
+    width: 500px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.entry {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+input[type="text"],
+input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+}
+
+.total {
+    margin-bottom: 20px;
+}
+
+#food-list {
+    list-style: none;
+    padding: 0;
+}
+
+#food-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+}
+
+#food-list li button {
+    background-color: #f44336;
+}

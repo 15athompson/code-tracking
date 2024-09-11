@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calorie Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Calorie Tracker</h1>
+        <div class="entry">
+            <label for="food-name">Food Name:</label>
+            <input type="text" id="food-name">
+            <label for="calories">Calories:</label>
+            <input type="number" id="calories">
+            <button id="add-food">Add Food</button>
+        </div>
+        <div class="total">
+            <h2>Total Calories: <span id="total-calories">0</span></h2>
+        </div>
+        <ul id="food-list"></ul>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
