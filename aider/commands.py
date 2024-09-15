@@ -56,6 +56,7 @@ class Commands:
         self.voice_language = voice_language
 
         self.help = None
+        self.todos = []
 
     def cmd_model(self, args):
         "Switch to a new LLM"
@@ -1148,6 +1149,44 @@ class Commands:
             title = None
 
         report_github_issue(issue_text, title=title, confirm=False)
+
+    def cmd_todo(self, args):
+        "Add, list, or mark to-do items. Usage: /todo [add <item> | list | done <index>]"
+        parts = args.split()
+        if not parts:
+            self.io.tool_error("Please provide a subcommand: add, list, or done.")
+            return
+
+        subcommand = parts[0]
+        if subcommand == "add":
+            if len(parts) < 2:
+                self.io.tool_error("Please provide a to-do item to add.")
+                return
+            item = " ".join(parts[1:])
+            self.todos.append({"text": item, "done": False})
+            self.io.tool_output(f"Added: {item}")
+        elif subcommand == "list":
+            if not self.todos:
+                self.io.tool_output("No to-do items yet.")
+                return
+            for i, todo in enumerate(self.todos):
+                prefix = "[x]" if todo["done"] else "[ ]"
+                self.io.tool_output(f"{i+1}. {prefix} {todo['text']}")
+        elif subcommand == "done":
+            if len(parts) < 2:
+                self.io.tool_error("Please provide the index of the to-do item to mark as done.")
+                return
+            try:
+                index = int(parts[1]) - 1
+                if 0 <= index < len(self.todos):
+                    self.todos[index]["done"] = True
+                    self.io.tool_output(f"Marked as done: {self.todos[index]['text']}")
+                else:
+                    self.io.tool_error("Invalid to-do item index.")
+            except ValueError:
+                self.io.tool_error("Invalid index. Please provide a number.")
+        else:
+            self.io.tool_error("Invalid subcommand. Please use add, list, or done.")
 
 
 def expand_subdir(file_path):

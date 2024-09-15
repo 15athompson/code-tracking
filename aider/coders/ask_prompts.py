@@ -28,3 +28,11 @@ If you need to see the full contents of any files to answer my questions, ask me
 """
 
     system_reminder = ""
+
+    todo_help = """
+You can manage a simple to-do list within aider using these commands:
+
+`/todo add <item>`: Add a new to-do item.
+`/todo list`: List all to-do items.
+`/todo done <index>`: Mark a to-do item as done (using its index from the list).
+"""
