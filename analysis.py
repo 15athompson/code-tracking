@@ -47,6 +47,11 @@ plt.show()
 
 # --- Identifying Patterns and Trends ---
 
+# Convert 'Education Level' to numerical data using label encoding
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+data['Education Level'] = le.fit_transform(data['Education Level'])
+
 # Correlation matrix
 correlation_matrix = data.corr()
 print("\nCorrelation Matrix:")
