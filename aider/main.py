@@ -555,7 +555,13 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         return 1
 
     commands = Commands(
-        io, None, verify_ssl=args.verify_ssl, args=args, parser=parser, verbose=args.verbose
+        io,
+        None,
+        voice_language=args.voice_language,
+        verify_ssl=args.verify_ssl,
+        args=args,
+        parser=parser,
+        verbose=args.verbose,
     )
 
     summarizer = ChatSummary(
@@ -597,6 +603,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             num_cache_warming_pings=args.cache_keepalive_pings,
             suggest_shell_commands=args.suggest_shell_commands,
             chat_language=args.chat_language,
+            voice_language=args.voice_language,
         )
     except ValueError as err:
         io.tool_error(str(err))

@@ -50,13 +50,11 @@ class Commands:
         self.verbose = verbose
 
         self.verify_ssl = verify_ssl
-        if voice_language == "auto":
-            voice_language = None
-
         self.voice_language = voice_language
 
         self.help = None
         self.todos = []
+        self.voice_assistant = None
 
     def cmd_model(self, args):
         "Switch to a new LLM"
@@ -992,50 +990,26 @@ class Commands:
         return res
 
     def cmd_voice(self, args):
-        "Record and transcribe voice input"
+        "Start/stop the voice assistant"
 
-        if not self.voice:
+        if not self.voice_assistant:
             if "OPENAI_API_KEY" not in os.environ:
                 self.io.tool_error("To use /voice you must provide an OpenAI API key.")
                 return
             try:
-                self.voice = voice.Voice()
+                self.voice_assistant = voice.Voice()
             except voice.SoundDeviceError:
                 self.io.tool_error(
                     "Unable to import `sounddevice` and/or `soundfile`, is portaudio installed?"
                 )
                 return
 
-        history_iter = self.io.get_input_history()
-
-        history = []
-        size = 0
-        for line in history_iter:
-            if line.startswith("/"):
-                continue
-            if line in history:
-                continue
-            if size + len(line) > 1024:
-                break
-            size += len(line)
-            history.append(line)
-
-        history.reverse()
-        history = "\n".join(history)
-
-        try:
-            text = self.voice.record_and_transcribe(history, language=self.voice_language)
-        except litellm.OpenAIError as err:
-            self.io.tool_error(f"Unable to use OpenAI whisper model: {err}")
-            return
-
-        if text:
-            self.io.add_to_input_history(text)
-            print()
-            self.io.user_input(text, log_only=False)
-            print()
-
-        return text
+            self.io.tool_output("Voice assistant started.")
+            self.coder.start_voice_assistant()
+        else:
+            self.io.tool_output("Voice assistant stopped.")
+            self.coder.stop_voice_assistant()
+            self.voice_assistant = None
 
     def cmd_clipboard(self, args):
         "Add image/text from the clipboard to the chat (optionally provide a name for the image)"
