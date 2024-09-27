@@ -112,12 +112,7 @@ class Voice:
                 print(f"Unable to transcribe {filename}: {err}")
                 return
 
+        os.remove(filename)
+
         text = transcript.text
         return text
-
-
-if __name__ == "__main__":
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("Please set the OPENAI_API_KEY environment variable.")
-    print(Voice().record_and_transcribe())
