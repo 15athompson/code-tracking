@@ -1,0 +1,24 @@
+
+## Caching
+
+The tool caches comments and sentiment analysis results in the `cache_dir` specified in the configuration. This helps to avoid redundant API calls and computations, making the tool faster and more efficient.
+
+## Logging
+
+The tool logs all activities and errors to the `log_file` specified in the configuration. This helps in debugging and monitoring the tool.
+
+## Error Handling
+
+The tool includes error handling for the API key, invalid YouTube URLs, and other potential issues. Errors are logged to the log file and printed to the console.
+
+## Sentiment Analysis
+
+The tool uses both VADER and a transformer model for sentiment analysis. VADER provides a compound score, while the transformer model provides a more detailed breakdown of positive, negative, and neutral sentiments.
+
+## Contributing
+
+Feel free to contribute to this project by submitting pull requests or opening issues.
+
+## License
+
+This project is licensed under the MIT License.
