@@ -78,7 +78,7 @@ def _load_cached_data(cache_file: str, expiry_days: int) -> Optional[dict]:
             return None
     return None
 
-def _save_cached_data(cache_file: str,  dict):
+def _save_cached_data(cache_file: str,  data):
     """Saves data to cache with a timestamp."""
     os.makedirs(os.path.dirname(cache_file), exist_ok=True)
     data['timestamp'] = datetime.now().isoformat()
