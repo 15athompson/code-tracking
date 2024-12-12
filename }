@@ -1,7 +1,7 @@
 
 ## Caching
 
-The tool caches comments and sentiment analysis results in the `cache_dir` specified in the configuration. This helps to avoid redundant API calls and computations, making the tool faster and more efficient.
+The tool caches comments and sentiment analysis results in the `cache_dir` specified in the configuration. The cache is invalidated after the number of days specified by `cache_expiry_days` or when the `--force-refresh` command-line option is used. This helps to avoid redundant API calls and computations, making the tool faster and more efficient.
 
 ## Logging
 
@@ -13,7 +13,7 @@ The tool includes error handling for the API key, invalid YouTube URLs, and othe
 
 ## Sentiment Analysis
 
-The tool uses both VADER and a transformer model for sentiment analysis. VADER provides a compound score, while the transformer model provides a more detailed breakdown of positive, negative, and neutral sentiments.
+The tool uses both VADER and a transformer model for sentiment analysis. VADER provides a compound score, while the transformer model provides a more detailed breakdown of positive, negative, and neutral sentiments. The transformer model can be configured using the `sentiment_model` option in the `config.json` file.
 
 ## Contributing
 

@@ -8,10 +8,13 @@ This tool analyzes the sentiment of comments on a YouTube video. It fetches comm
 - **Caching:** Caches comments and sentiment analysis results to avoid redundant API calls and computations.
 - **Advanced Sentiment Analysis:** Uses a pre-trained transformer model from the `transformers` library for more accurate sentiment analysis, in addition to VADER.
 - **Detailed Sentiment Breakdown:** Provides the number of positive, negative, and neutral comments.
+- **Sentiment Over Time:** Provides a summary of how the sentiment changes over the course of the video.
+- **Configurable Sentiment Model:** Allows the user to specify the sentiment analysis model to use.
 - **Error Handling:** Includes error handling for the API key and other potential issues.
 - **Logging:** Logs all activities and errors to a log file.
-- **Progress Bar:** Uses `tqdm` to display a progress bar while fetching comments.
+- **Progress Bar:** Uses `tqdm` to display a progress bar while fetching comments and analyzing sentiment.
 - **Configuration:** Loads configuration from a `config.json` file, or uses default values if the file does not exist.
+- **Cache Invalidation:** Allows the user to force cache invalidation using a command-line option.
 
 ## Prerequisites
 
