@@ -9,6 +9,8 @@ import googleapiclient.discovery
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from transformers import pipeline
 from tqdm import tqdm
+import numpy as np
+
 
 # Configuration
 CONFIG_FILE = "config.json"
@@ -92,7 +94,7 @@ def get_youtube_comments(youtube, video_id: str) -> Optional[List[str]]:
         return None
     return comments
 
-def analyze_sentiment(comments: List[str]) -> Tuple[str, float, dict]:
+def analyze_sentiment(comments: List[str]) -> Tuple[str, float, dict, list, list]:
     """Analyzes the sentiment of a list of comments using VADER and a transformer model."""
     cache_file = os.path.join(config["cache_dir"], f"{hashlib.md5(str(comments).encode()).hexdigest()}_sentiment.json")
     if os.path.exists(cache_file):
@@ -101,11 +103,11 @@ def analyze_sentiment(comments: List[str]) -> Tuple[str, float, dict]:
             return tuple(json.load(f))
 
     analyzer = SentimentIntensityAnalyzer()
-    sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+    sentiment_pipeline = pipeline("sentiment-analysis", model="cardiffnlp/twitter-roberta-base-sentiment-latest")
     
     vader_scores = [analyzer.polarity_scores(comment)['compound'] for comment in comments]
     if not vader_scores:
-        return "neutral", 0.0, {"positive": 0, "negative": 0, "neutral": 0}
+        return "neutral", 0.0, {"positive": 0, "negative": 0, "neutral": 0}, [], []
     average_score = sum(vader_scores) / len(vader_scores)
 
     if average_score >= 0.05:
@@ -117,26 +119,38 @@ def analyze_sentiment(comments: List[str]) -> Tuple[str, float, dict]:
 
     # Detailed sentiment breakdown
     sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
-    for comment in comments:
-        try:
-            result = sentiment_pipeline(comment)[0]
-            label = result['label']
-            if label == "POSITIVE":
-                sentiment_counts["positive"] += 1
-            elif label == "NEGATIVE":
-                sentiment_counts["negative"] += 1
-            else:
+    
+    
+    sentiment_results = []
+    print("Analyzing sentiment...")
+    with tqdm(total=len(comments), unit="comment") as pbar:
+        for comment in comments:
+            try:
+                result = sentiment_pipeline(comment)[0]
+                label = result['label']
+                score = result['score']
+                sentiment_results.append((comment, label, score))
+                if label == "positive":
+                    sentiment_counts["positive"] += 1
+                elif label == "negative":
+                    sentiment_counts["negative"] += 1
+                else:
+                    sentiment_counts["neutral"] += 1
+            except Exception as e:
+                logging.warning(f"Error during transformer sentiment analysis: {e}")
                 sentiment_counts["neutral"] += 1
-        except Exception as e:
-            logging.warning(f"Error during transformer sentiment analysis: {e}")
-            sentiment_counts["neutral"] += 1
-
+            pbar.update(1)
+    
+    # Identify most positive and negative comments
+    positive_comments = sorted([item for item in sentiment_results if item[1] == "positive"], key=lambda x: x[2], reverse=True)[:5]
+    negative_comments = sorted([item for item in sentiment_results if item[1] == "negative"], key=lambda x: x[2], reverse=True)[:5]
+    
     # Save to cache
     os.makedirs(config["cache_dir"], exist_ok=True)
     with open(cache_file, "w") as f:
-        json.dump((sentiment, average_score, sentiment_counts), f)
+        json.dump((sentiment, average_score, sentiment_counts, positive_comments, negative_comments), f)
     logging.info(f"Sentiment analysis saved to cache: {cache_file}")
-    return sentiment, average_score, sentiment_counts
+    return sentiment, average_score, sentiment_counts, positive_comments, negative_comments
 
 def main():
     """Main function to run the sentiment analysis."""
@@ -174,12 +188,20 @@ def main():
         print("No comments found for this video.")
         return
 
-    sentiment, average_score, sentiment_counts = analyze_sentiment(comments)
+    sentiment, average_score, sentiment_counts, positive_comments, negative_comments = analyze_sentiment(comments)
     print(f"Overall sentiment of the video: {sentiment}")
     print(f"Average compound score: {average_score:.2f}")
     print("Sentiment breakdown:")
     for key, value in sentiment_counts.items():
         print(f"  {key}: {value}")
+    
+    print("\nMost positive comments:")
+    for comment, label, score in positive_comments:
+        print(f"  - {comment[:100]}... (score: {score:.2f})")
+    
+    print("\nMost negative comments:")
+    for comment, label, score in negative_comments:
+        print(f"  - {comment[:100]}... (score: {score:.2f})")
 
 if __name__ == "__main__":
     main()
