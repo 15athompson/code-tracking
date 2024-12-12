@@ -92,7 +92,7 @@ def get_youtube_comments(youtube, video_id: str, force_refresh: bool = False) ->
     
     if not force_refresh:
         cached_data = _load_cached_data(cache_file, config["cache_expiry_days"])
-        if cached_data and 'comments' in cached_
+        if cached_data and 'comments' in cached_data:
             return cached_data['comments']
 
     comments = []
