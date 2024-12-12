@@ -1,8 +1,35 @@
 import os
+import argparse
+import json
+import logging
+import hashlib
+from typing import List, Optional, Tuple
+from urllib.parse import urlparse, parse_qs
 import googleapiclient.discovery
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-from urllib.parse import urlparse, parse_qs
-from typing import List, Optional
+from transformers import pipeline
+from tqdm import tqdm
+
+# Configuration
+CONFIG_FILE = "config.json"
+DEFAULT_CONFIG = {
+    "cache_dir": "cache",
+    "log_file": "sentiment_analyzer.log"
+}
+
+def load_config():
+    """Loads configuration from config.json or uses defaults."""
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            config = json.load(f)
+        return config
+    else:
+        return DEFAULT_CONFIG
+
+config = load_config()
+
+# Setup logging
+logging.basicConfig(filename=config["log_file"], level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def get_video_id(url: str) -> Optional[str]:
     """Extracts the video ID from a YouTube URL. Returns None if the URL is invalid."""
@@ -14,11 +41,18 @@ def get_video_id(url: str) -> Optional[str]:
                 return query_params['v'][0]
     elif parsed_url.netloc == 'youtu.be':
         return parsed_url.path[1:]
+    logging.error(f"Invalid YouTube URL: {url}")
     print("Invalid YouTube URL.")
     return None
 
 def get_youtube_comments(youtube, video_id: str) -> Optional[List[str]]:
     """Fetches comments from a YouTube video."""
+    cache_file = os.path.join(config["cache_dir"], f"{video_id}_comments.json")
+    if os.path.exists(cache_file):
+        logging.info(f"Loading comments from cache: {cache_file}")
+        with open(cache_file, "r") as f:
+            return json.load(f)
+
     comments = []
     try:
         results = youtube.commentThreads().list(
@@ -29,35 +63,50 @@ def get_youtube_comments(youtube, video_id: str) -> Optional[List[str]]:
         
         print("Fetching comments...")
         comment_count = 0
-        while results:
-            for item in results['items']:
-                comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
-                comments.append(comment)
-                comment_count += 1
-                if comment_count % 10 == 0:
-                    print(f"Fetched {comment_count} comments...")
-            if 'nextPageToken' in results:
-                results = youtube.commentThreads().list(
-                    part="snippet",
-                    videoId=video_id,
-                    textFormat="plainText",
-                    pageToken=results['nextPageToken']
-                ).execute()
-            else:
-                break
+        with tqdm(unit="comments") as pbar:
+            while results:
+                for item in results['items']:
+                    comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
+                    comments.append(comment)
+                    comment_count += 1
+                    pbar.update(1)
+                if 'nextPageToken' in results:
+                    results = youtube.commentThreads().list(
+                        part="snippet",
+                        videoId=video_id,
+                        textFormat="plainText",
+                        pageToken=results['nextPageToken']
+                    ).execute()
+                else:
+                    break
         print(f"Total comments fetched: {comment_count}")
+        
+        # Save to cache
+        os.makedirs(config["cache_dir"], exist_ok=True)
+        with open(cache_file, "w") as f:
+            json.dump(comments, f)
+        logging.info(f"Comments saved to cache: {cache_file}")
     except Exception as e:
+        logging.error(f"An error occurred while fetching comments: {e}")
         print(f"An error occurred: {e}")
         return None
     return comments
 
-def analyze_sentiment(comments: List[str]) -> tuple[str, float]:
-    """Analyzes the sentiment of a list of comments and returns the sentiment category and average compound score."""
+def analyze_sentiment(comments: List[str]) -> Tuple[str, float, dict]:
+    """Analyzes the sentiment of a list of comments using VADER and a transformer model."""
+    cache_file = os.path.join(config["cache_dir"], f"{hashlib.md5(str(comments).encode()).hexdigest()}_sentiment.json")
+    if os.path.exists(cache_file):
+        logging.info(f"Loading sentiment analysis from cache: {cache_file}")
+        with open(cache_file, "r") as f:
+            return tuple(json.load(f))
+
     analyzer = SentimentIntensityAnalyzer()
-    compound_scores = [analyzer.polarity_scores(comment)['compound'] for comment in comments]
-    if not compound_scores:
-        return "neutral", 0.0
-    average_score = sum(compound_scores) / len(compound_scores)
+    sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+    
+    vader_scores = [analyzer.polarity_scores(comment)['compound'] for comment in comments]
+    if not vader_scores:
+        return "neutral", 0.0, {"positive": 0, "negative": 0, "neutral": 0}
+    average_score = sum(vader_scores) / len(vader_scores)
 
     if average_score >= 0.05:
         sentiment = "positive"
@@ -65,22 +114,53 @@ def analyze_sentiment(comments: List[str]) -> tuple[str, float]:
         sentiment = "negative"
     else:
         sentiment = "neutral"
-    return sentiment, average_score
+
+    # Detailed sentiment breakdown
+    sentiment_counts = {"positive": 0, "negative": 0, "neutral": 0}
+    for comment in comments:
+        try:
+            result = sentiment_pipeline(comment)[0]
+            label = result['label']
+            if label == "POSITIVE":
+                sentiment_counts["positive"] += 1
+            elif label == "NEGATIVE":
+                sentiment_counts["negative"] += 1
+            else:
+                sentiment_counts["neutral"] += 1
+        except Exception as e:
+            logging.warning(f"Error during transformer sentiment analysis: {e}")
+            sentiment_counts["neutral"] += 1
+
+    # Save to cache
+    os.makedirs(config["cache_dir"], exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump((sentiment, average_score, sentiment_counts), f)
+    logging.info(f"Sentiment analysis saved to cache: {cache_file}")
+    return sentiment, average_score, sentiment_counts
 
 def main():
     """Main function to run the sentiment analysis."""
+    parser = argparse.ArgumentParser(description="Analyze sentiment of YouTube video comments.")
+    parser.add_argument("video_url", help="YouTube video URL")
+    args = parser.parse_args()
+
     api_service_name = "youtube"
     api_version = "v3"
     api_key = os.environ.get("YOUTUBE_API_KEY") # Set your API key as an environment variable
 
     if not api_key:
+        logging.error("YOUTUBE_API_KEY environment variable not set.")
         print("Please set the YOUTUBE_API_KEY environment variable.")
         return
 
-    youtube = googleapiclient.discovery.build(api_service_name, api_version, developerKey=api_key)
+    try:
+        youtube = googleapiclient.discovery.build(api_service_name, api_version, developerKey=api_key)
+    except Exception as e:
+        logging.error(f"Error building YouTube API service: {e}")
+        print(f"Error building YouTube API service: {e}")
+        return
 
-    video_url = input("Enter YouTube video URL: ")
-    video_id = get_video_id(video_url)
+    video_id = get_video_id(args.video_url)
 
     if not video_id:
         return
@@ -94,9 +174,12 @@ def main():
         print("No comments found for this video.")
         return
 
-    sentiment, average_score = analyze_sentiment(comments)
+    sentiment, average_score, sentiment_counts = analyze_sentiment(comments)
     print(f"Overall sentiment of the video: {sentiment}")
     print(f"Average compound score: {average_score:.2f}")
+    print("Sentiment breakdown:")
+    for key, value in sentiment_counts.items():
+        print(f"  {key}: {value}")
 
 if __name__ == "__main__":
     main()
