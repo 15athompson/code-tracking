@@ -1,0 +1,8 @@
+**Next Steps**
+
+1. **Intent Identification**: Implement a more sophisticated ML model to identify the intent behind the user's
+command.
+2. **Entity Extraction**: Extract relevant entities from the input text and use them to look up information or
+control smart home devices.
+3. **Smart Home Device Integration**: Integrate with smart home devices using APIs such as Philips Hue or Belkin
+WeMo.

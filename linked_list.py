@@ -266,7 +266,7 @@ class LinkedList:
         p = self.head
         while p:
             data = s.pop()
-            if p.data != 
+            if p.data != data:
                 return False
             p = p.next
         return True

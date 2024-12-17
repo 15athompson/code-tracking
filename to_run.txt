@@ -1,0 +1,47 @@
+cd AIDER
+.venv\Scripts\activate
+setx GEMINI_API_KEY AIzaSyC61IF8hMfSvFdLJUelhQN32EhNmONXt9c
+aider --model gemini/gemini-2.0-flash-exp
+aider --model gemini-1.5-flasaider --model gemini/gemini-2.0-flash-exph-002
+aider --model gemini-1.5-flash-exp-0827
+aider --model gemini/gemini-1.5-pro-exp-0827
+or aider --model gemini/gemini-1.5-flash-8b-exp-0827
+if this doesn't work in VSC, do it in the command prompt
+aider --model xai/grok-beta
+
+for claude dev:
+litellm --model gemini/gemini-1.5-flash
+or litellm --model gemini/gemini-1.5-pro-exp-0827
+
+-------------------
+
+||||||||||||||  create an AI voice assistant ||||||||||||||||||||||
+
+
+------------------------
+
+The error message you're encountering indicates that the google module is not installed in your current Python environment. This module is typically part of the Google Cloud SDK libraries and is required for the litellm library to function properly with the gemini model.
+
+To resolve this issue, you can install the required google libraries using pip. Here’s how to do it:
+
+Make sure your virtual environment is activated (it looks like it already is since you see (.venv) in your command prompt).
+
+Run the following command to install the necessary Google packages:
+
+bash
+
+pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+Once the installation is complete, try running your command again:
+
+bash
+
+aider --model gemini-1.5-flash-002
+If you still encounter issues after the installation, you may want to check your Python environment and make sure there are no other related issues. Additionally, ensure that you have the required API credentials and project set up in Google Cloud, as the error related to VERTEXAI_PROJECT and VERTEXAI_LOCATION suggests that those environment variables should also be set before proceeding.
+
+If you haven't set those variables yet, you can do so using the following commands in your command prompt:
+
+bash
+
+setx VERTEXAI_PROJECT YOUR_PROJECT_ID
+setx VERTEXAI_LOCATION YOUR_LOCATION
+Replace YOUR_PROJECT_ID and YOUR_LOCATION with the appropriate values for your Google Cloud project. Remember to restart your terminal after setting these variables so they take effect.
