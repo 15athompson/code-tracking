@@ -161,16 +161,9 @@ def execute_trade(symbol, side, amount, stop_loss_price=None, take_profit_price=
 
 def get_position_size(balance, entry_price, stop_loss_price, risk_percentage):
     """Calculates the position size based on risk management parameters."""
-    # Calculate position size based on risk amount and stop loss distance
     risk_amount = balance * risk_percentage
     stop_loss_distance = abs(entry_price - stop_loss_price)
     position_size = risk_amount / stop_loss_distance
-
-    # Add volatility-based position sizing using ATR
-    atr = df['ATR'].iloc[-1]  # Get latest ATR value
-    volatility_adjustment = 1 - (atr / entry_price)  # Reduce position size in high volatility
-    position_size *= max(0.1, volatility_adjustment)  # Never reduce by more than 90%
-
     return position_size
 
 def get_open_trades(exchange, symbol):
@@ -191,10 +184,6 @@ def backtest(df):
     initial_balance = 1000  # Starting balance for backtesting
     balance = initial_balance
     trades = []
-    max_balance = initial_balance
-    max_drawdown = 0
-    win_trades = 0
-    total_trades = 0
 
     for i in range(len(df)):
         if df['signal'][i] == 1:
@@ -231,50 +220,10 @@ def backtest(df):
     print(f"Final Balance: {final_balance}")
     print(f"Profit: {profit}")
     print(f"Profit Percentage: {profit_percentage:.2f}%")
-    print(f"Maximum Drawdown: {max_drawdown:.2f}%")
-    print(f"Win Rate: {(win_trades/total_trades*100):.2f}% ({win_trades}/{total_trades})")
 
     return trades
 
 # --- Main Loop ---
-
-def analyze_market_conditions(df):
-    """Analyzes current market conditions."""
-    # Analyze volatility
-    current_atr = df['ATR'].iloc[-1]
-    avg_atr = df['ATR'].rolling(window=20).mean().iloc[-1]
-    high_volatility = current_atr > avg_atr * 1.5
-
-    # Analyze trend strength
-    adx = df['ADX'].iloc[-1]
-    strong_trend = adx > 25
-
-    # Analyze volume
-    current_volume = df['volume'].iloc[-1]
-    avg_volume = df['volume'].rolling(window=20).mean().iloc[-1]
-    high_volume = current_volume > avg_volume * 1.2
-
-    # Price relative to Bollinger Bands
-    price = df['close'].iloc[-1]
-    upper_band = df['upper_band'].iloc[-1]
-    lower_band = df['lower_band'].iloc[-1]
-    overbought = price > upper_band
-    oversold = price < lower_band
-
-    # RSI extremes
-    rsi = df['RSI'].iloc[-1]
-    rsi_overbought = rsi > 70
-    rsi_oversold = rsi < 30
-
-    return {
-        'high_volatility': high_volatility,
-        'strong_trend': strong_trend,
-        'high_volume': high_volume,
-        'price_overbought': overbought,
-        'price_oversold': oversold,
-        'rsi_overbought': rsi_overbought,
-        'rsi_oversold': rsi_oversold
-    }
 
 def main():
     """Main trading loop."""
@@ -296,18 +245,8 @@ def main():
                 # Calculate indicators
                 df = calculate_indicators(df)
 
-                # Analyze market conditions
-                market_conditions = analyze_market_conditions(df)
-                logging.info(f"Market conditions: {market_conditions}")
-
                 # Generate trading signals
                 df = generate_trading_signals(df)
-
-                # Adjust trading based on market conditions
-                if market_conditions['high_volatility']:
-                    logging.warning("High volatility detected - reducing position sizes")
-                if not market_conditions['strong_trend']:
-                    logging.info("Weak trend - waiting for stronger signals")
 
                 # Check for signals and risk management
                 if df['signal'].iloc[-1] == 1 and len(get_open_trades(exchange, symbol)) < max_open_trades:
@@ -330,6 +269,40 @@ def main():
 
                 # Sleep for a specified interval
                 time.sleep(60)
+
+if __name__ == '__main__':
+    main()
+
+def execute_trade(symbol, side, amount):
+    # Get the current price of the stock
+    current_price = get_current_price(symbol)
+    
+    # Calculate the stop loss and take profit price based on the current price
+    stop_loss_price = current_price * (1 - stop_loss_percentage)
+    take_profit_price = current_price * (1 + take_profit_percentage)
+    
+    # Calculate the position size based on the balance percentage
+    position_size = balance_percentage * current_price
+    
+    # Execute the trade
+    try:
+        exchange.create_order(symbol, 'market', side, position_size, params={
+            'stopLoss': stop_loss_price,
+            'takeProfit': take_profit_price,
+        })
+        print(f"Order placed: {symbol} {side} @ {current_price}")
+    except ccxt.ExchangeError as e:
+        print(f"Error placing order: {e}")
+
+def get_current_price(symbol):
+    # Get the current price of the stock
+    try:
+        ticker = exchange.fetch_ticker(symbol)
+        current_price = ticker['last']
+        return current_price
+    except ccxt.ExchangeError as e:
+        print(f"Error fetching current price: {e}")
+        return None
 
 if __name__ == '__main__':
     main()
